@@ -19,8 +19,8 @@ async function testGardenOrderTemplate() {
       destination_chain: "arbitrum_sepolia",
       destination_asset: "0x795Dcb58d1cd4789169D5F938Ea05E17ecEB68cA",
       source_amount: "50000000000000000",
-      source_swap_amount: "5.14",
-      destination_swap_amount: "5.14",
+      source_swap_amount: "5.1234",
+      destination_swap_amount: "5.1234",
       destination_amount: "119560",
       input_token_price: 2500,
       output_token_price: 103000,
@@ -29,8 +29,8 @@ async function testGardenOrderTemplate() {
       volume: 524500.0,
       feeSaved: 1234.31,
       timeSaved: "31m 54s",
-      totalTimeOfOthersMax: "1h",
-      totalAmountOthersMax: "$321",
+      totalTimeOfOthersMax: "10m 24s",
+      totalAmountOthersMax: "$120.42",
     };
 
     logger.info("Mock order created:", mockOrder);

@@ -243,8 +243,7 @@ export async function fetchHighVolumeOrders(
     if (!networkInfo) {
       // Use environment variable for API URL instead of hardcoding
       const apiUrl =
-        process.env.NETWORK_API_URL ||
-        "https://xcgg04skw4k044ws8swok4gw.65.109.18.60.sslip.io/networks";
+        process.env.NETWORK_API_URL || "https://api.garden.finance/info/assets";
       logger.info(`Fetching network info from ${apiUrl}`);
       networkInfo = await getAssetInfo(apiUrl);
     }

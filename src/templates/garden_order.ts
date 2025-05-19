@@ -164,9 +164,9 @@ export class GardenOrderTemplate implements ImageTemplate {
     ctx.shadowBlur = 0;
     ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 0;
-    ctx.font = "bold 28px Satoshi";
+    ctx.font = "bold 25px Satoshi";
     ctx.textAlign = "right";
-    ctx.fillText(`~$${volume.toFixed(2)}`, 910, 280);
+    ctx.fillText(`~$${volume.toFixed(2)}`, 910, 285);
     ctx.shadowOffsetX = 0;
   }
 
@@ -192,7 +192,7 @@ export class GardenOrderTemplate implements ImageTemplate {
     // Source amount (left side)
     ctx.shadowColor = ctx.fillStyle;
     ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 3;
+    ctx.shadowOffsetX = 1.5;
     ctx.shadowOffsetY = 0;
     ctx.fillText(source_amount, 90, 395);
     // Reset shadow after drawing
@@ -200,7 +200,7 @@ export class GardenOrderTemplate implements ImageTemplate {
 
     // Destination amount (right side)
     ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 3;
+    ctx.shadowOffsetX = 1.5;
     ctx.shadowOffsetY = 0;
     ctx.fillText(destination_amount, 570, 395);
     ctx.shadowOffsetX = 0;
@@ -247,7 +247,7 @@ export class GardenOrderTemplate implements ImageTemplate {
     ctx.shadowBlur = 0;
     ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 0;
-    ctx.font = "bold 28px Satoshi";
+    ctx.font = "bold 25px Satoshi";
     ctx.textAlign = "right";
     ctx.fillText(totalTime, 445, 560);
     ctx.shadowOffsetX = 0;
@@ -278,7 +278,7 @@ export class GardenOrderTemplate implements ImageTemplate {
     ctx.shadowBlur = 0;
     ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 0;
-    ctx.font = "bold 28px Satoshi";
+    ctx.font = "bold 25px Satoshi";
     ctx.textAlign = "right";
     ctx.fillText(totalFee.toString(), 910, 560);
     ctx.shadowOffsetX = 1;
