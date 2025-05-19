@@ -1,0 +1,43 @@
+{
+  "name": "twitter_bot",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node-dev --respawn src/index.ts",
+    "start": "node dist/index.js",
+    "metrics": "ts-node-dev --respawn src/index.ts",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json}\""
+  },
+  "dependencies": {
+    "@chainflip/sdk": "^1.8.3",
+    "@gardenfi/orderbook": "2.1.2-beta.16",
+    "@gardenfi/utils": "2.1.2-beta.13",
+    "@trpc/server": "^11.1.2",
+    "@types/express-session": "^1.18.1",
+    "@types/request": "^2.48.12",
+    "axios": "^1.9.0",
+    "bignumber.js": "^9.3.0",
+    "canvas": "^3.1.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.17.1",
+    "express-session": "^1.17.2",
+    "fs": "^0.0.1-security",
+    "node-cron": "^3.0.2",
+    "request": "^2.88.2",
+    "twitter-api-v2": "^1.23.0",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.8.9",
+    "@types/node-cron": "^3.0.10",
+    "@types/pg": "^8.10.7",
+    "nodemon": "^3.0.1",
+    "prettier": "^3.0.3",
+    "ts-node": "^10.9.1",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.2.2"
+  }
+}
