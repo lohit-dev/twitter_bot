@@ -18,15 +18,19 @@ async function testGardenOrderTemplate() {
         "0x58ea74e863bc9a761aa20701e04b65854f5614db3eb79b2d3a76a8771694c02",
       destination_chain: "arbitrum_sepolia",
       destination_asset: "0x795Dcb58d1cd4789169D5F938Ea05E17ecEB68cA",
-      source_amount: "50000000000000000", // 0.05 ETH in wei
-      destination_amount: "119560", // In smallest unit
-      input_token_price: 2500, // $2500 per ETH
-      output_token_price: 103000, // $103,000 per BTC
+      source_amount: "50000000000000000",
+      source_swap_amount: "5.14",
+      destination_swap_amount: "5.14",
+      destination_amount: "119560",
+      input_token_price: 2500,
+      output_token_price: 103000,
       created_at: new Date().toISOString(),
       timestamp: new Date().toISOString(),
-      volume: 524500.0, // $524,500 volume
-      feeSaved: 1234.31, // Hardcoded fee saved
-      timeSaved: "31m 54s", // Hardcoded time saved
+      volume: 524500.0,
+      feeSaved: 1234.31,
+      timeSaved: "31m 54s",
+      totalTimeOfOthersMax: "1h",
+      totalAmountOthersMax: "$321",
     };
 
     logger.info("Mock order created:", mockOrder);

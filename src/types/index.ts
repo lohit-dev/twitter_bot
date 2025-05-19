@@ -4,8 +4,6 @@ import {
 } from "../services/timeAndFeeComparison/constants";
 import { Asset } from "@gardenfi/orderbook";
 import { Chain, Asset as ChainflipAsset } from "@chainflip/sdk/swap";
-
-
 export interface SuccessfulOrder {
   create_order_id: string;
   source_chain: string;
@@ -22,8 +20,11 @@ export interface SuccessfulOrder {
   timeSaved?: string;
   timeSavedMinutes?: number;
   feeSaved?: number;
+  source_swap_amount: string;
+  destination_swap_amount: string;
+  totalTimeOfOthersMax: string;
+  totalAmountOthersMax: string;
 }
-
 // Define types for token data
 export interface TokenData {
   codeVerifier?: string;

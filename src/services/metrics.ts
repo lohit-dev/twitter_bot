@@ -2,7 +2,24 @@ import { logger } from "../utils/logger";
 import { SuccessfulOrder } from "../types";
 import { getAssetInfo, getMatchedOrder, NetworkInfo } from "./api";
 import { formatCurrency } from "../utils/formatters";
-import { MatchedOrder } from "@gardenfi/orderbook";
+import { MatchedOrder, Asset, Chain } from "@gardenfi/orderbook";
+import { compareWithOtherServices } from "./compareService";
+
+/**
+ * Gets time estimates for different chains
+ * @param chain The chain name
+ * @returns Object with timeString and timeMinutes
+ */
+function getTimeEstimates(chain: string): {
+  timeString: string;
+  timeMinutes: number;
+} {
+  if (chain.toLowerCase() === "bitcoin" || chain.toLowerCase() === "btc") {
+    return { timeString: "~10m", timeMinutes: 10 };
+  }
+  // For EVM chains (Ethereum, Arbitrum, etc.)
+  return { timeString: "~30s", timeMinutes: 0.5 };
+}
 
 /**
  * Gets the decimal places for a specific asset
@@ -50,7 +67,7 @@ function getDecimals(
  */
 function convertToSuccessfulOrder(
   matchedOrder: MatchedOrder,
-  networkInfo: any
+  networkInfo: NetworkInfo
 ): SuccessfulOrder | null {
   try {
     if (
@@ -95,7 +112,67 @@ function convertToSuccessfulOrder(
     const volume =
       sourceAmount * inputTokenPrice + destinationAmount * outputTokenPrice;
 
-    return {
+    // Calculate Garden's actual fee in USD (difference between input and output amounts)
+    const gardenFee = sourceAmount - destinationAmount;
+
+    // Get Garden's swap time estimate based on the source chain
+    const gardenTimeEstimate = getTimeEstimates(
+      matchedOrder.create_order.source_chain
+    );
+    const gardenSwapTime = gardenTimeEstimate.timeString;
+
+    // Get source and destination asset information
+    // Find the asset config from networkInfo
+    const sourceChain = matchedOrder.create_order.source_chain;
+    const sourceAssetSymbol = matchedOrder.create_order.source_asset;
+
+    // Find the asset config in networkInfo
+    const sourceAssetConfig = networkInfo.assetConfig.find(
+      (asset) => asset.symbol === sourceAssetSymbol
+    );
+
+    const srcAsset = {
+      chain: sourceChain as Chain,
+      symbol: sourceAssetSymbol,
+      decimals: getDecimals(
+        {
+          chain: sourceChain,
+          asset: sourceAssetSymbol,
+        },
+        networkInfo
+      ),
+      name: sourceAssetConfig?.name || sourceAssetSymbol,
+      atomicSwapAddress: sourceAssetConfig?.atomicSwapAddress || "",
+      tokenAddress: sourceAssetConfig?.tokenAddress || "",
+    } as Asset;
+
+    // Find the destination asset config
+    const destChain = matchedOrder.create_order.destination_chain;
+    const destAssetSymbol = matchedOrder.create_order.destination_asset;
+
+    // Find the asset config in networkInfo
+    const destAssetConfig = networkInfo.assetConfig.find(
+      (asset) => asset.symbol === destAssetSymbol
+    );
+
+    const destAsset = {
+      chain: destChain as Chain,
+      symbol: destAssetSymbol,
+      decimals: getDecimals(
+        {
+          chain: destChain,
+          asset: destAssetSymbol,
+        },
+        networkInfo
+      ),
+      name: destAssetConfig?.name || destAssetSymbol,
+      atomicSwapAddress: destAssetConfig?.atomicSwapAddress || "",
+      tokenAddress: destAssetConfig?.tokenAddress || "",
+    } as Asset;
+
+    // Compare with other services (this will be an async call)
+    // For now, we'll return the basic order and update it later with the comparison results
+    const successfulOrder = {
       create_order_id: matchedOrder.create_order.create_id,
       source_chain: matchedOrder.create_order.source_chain,
       source_asset: matchedOrder.create_order.source_asset,
@@ -108,7 +185,39 @@ function convertToSuccessfulOrder(
       created_at: matchedOrder.created_at,
       timestamp: new Date(matchedOrder.created_at).toISOString(),
       volume,
+      source_swap_amount: matchedOrder.source_swap.amount,
+      destination_swap_amount: matchedOrder.destination_swap.amount,
+      // Initialize comparison metrics with default values
+      // These will be updated by the compareWithOtherServices call with the actual max values from other services
+      timeSaved: "0m 0s",
+      timeSavedMinutes: 0,
+      feeSaved: 0,
+      // These will be set to the maximum fee and time from other services after comparison
+      totalAmountOthersMax: "$0",
+      totalTimeOfOthersMax: "0s",
     };
+
+    compareWithOtherServices(
+      srcAsset,
+      destAsset,
+      sourceAmount,
+      gardenFee,
+      gardenSwapTime
+    )
+      .then((comparisonResults) => {
+        successfulOrder.timeSaved = comparisonResults.timeSaved;
+        successfulOrder.timeSavedMinutes = comparisonResults.timeSavedMinutes;
+        successfulOrder.feeSaved = comparisonResults.feeSaved;
+        successfulOrder.totalAmountOthersMax =
+          comparisonResults.totalAmountOthersMax;
+        successfulOrder.totalTimeOfOthersMax =
+          comparisonResults.totalTimeOfOthersMax;
+      })
+      .catch((error) => {
+        logger.error("Error updating order with comparison results:", error);
+      });
+
+    return successfulOrder;
   } catch (error) {
     logger.error(`Error converting matched order to successful order:`, error);
     return null;
@@ -132,42 +241,88 @@ export async function fetchHighVolumeOrders(
 
     // Only fetch network info if not provided (fallback)
     if (!networkInfo) {
-      networkInfo = await getAssetInfo(
-        "https://xcgg04skw4k044ws8swok4gw.65.109.18.60.sslip.io/networks"
-      );
+      // Use environment variable for API URL instead of hardcoding
+      const apiUrl =
+        process.env.NETWORK_API_URL ||
+        "https://xcgg04skw4k044ws8swok4gw.65.109.18.60.sslip.io/networks";
+      logger.info(`Fetching network info from ${apiUrl}`);
+      networkInfo = await getAssetInfo(apiUrl);
     }
 
     try {
       const highVolumeOrders: SuccessfulOrder[] = [];
-      const pageSize = 2;
-      const page = 1;
+      // Make these configurable instead of hardcoded
+      const pageSize = process.env.PAGE_SIZE
+        ? parseInt(process.env.PAGE_SIZE)
+        : 10;
+      const page = process.env.PAGE_NUMBER
+        ? parseInt(process.env.PAGE_NUMBER)
+        : 1;
 
       logger.info(
         `Fetching matched orders page ${page} with ${pageSize} items per page`
       );
       const matchedOrdersResponse = await getMatchedOrder(pageSize, page);
 
-      if (
-        !Array.isArray(matchedOrdersResponse) ||
-        matchedOrdersResponse.length === 0
-      ) {
-        logger.info("No new orders found");
+      if (!Array.isArray(matchedOrdersResponse)) {
+        logger.info("Matched orders response is not an array");
         return [];
       }
 
+      if (matchedOrdersResponse.length === 0) {
+        logger.info("No orders found in the response");
+        return [];
+      }
+
+      logger.info(
+        `Received ${matchedOrdersResponse.length} orders in the response`
+      );
+
+      // Log all matched orders with their IDs
+      logger.info(
+        `Found ${matchedOrdersResponse.length} matched orders: ${matchedOrdersResponse
+          .map((order) => order.create_order.create_id)
+          .join(", ")}`
+      );
+
       // Process each matched order
       for (const order of matchedOrdersResponse) {
+        const orderId = order.create_order.create_id;
+
+        // Log the current order being processed
+        logger.info(`Processing order ID: ${orderId}`);
+
         // Skip already processed orders
-        if (processedOrderIds.has(order.create_order.create_id)) {
+        if (processedOrderIds.has(orderId)) {
+          logger.info(`Skipping already processed order ID: ${orderId}`);
           continue;
         }
 
+        // Log order details before conversion
+        logger.info(
+          `Converting order ${orderId} - Source: ${order.create_order.source_chain}:${order.create_order.source_asset}, ` +
+            `Destination: ${order.create_order.destination_chain}:${order.create_order.destination_asset}`
+        );
+
         const successfulOrder = convertToSuccessfulOrder(order, networkInfo);
 
-        if (successfulOrder && successfulOrder.volume >= volumeThreshold) {
+        if (!successfulOrder) {
+          logger.info(`Failed to convert order ID: ${orderId}`);
+          continue;
+        }
+
+        logger.info(
+          `Order ${orderId} converted successfully with volume: ${formatCurrency(successfulOrder.volume)}`
+        );
+
+        if (successfulOrder.volume >= volumeThreshold) {
           highVolumeOrders.push(successfulOrder);
           logger.info(
-            `Found high-volume order: ${formatCurrency(successfulOrder.volume)}`
+            `Found high-volume order ID: ${orderId} with volume: ${formatCurrency(successfulOrder.volume)}`
+          );
+        } else {
+          logger.info(
+            `Order ID: ${orderId} volume (${formatCurrency(successfulOrder.volume)}) below threshold (${formatCurrency(volumeThreshold)})`
           );
         }
       }

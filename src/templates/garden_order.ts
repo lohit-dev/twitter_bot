@@ -110,10 +110,22 @@ export class GardenOrderTemplate implements ImageTemplate {
 
       await this.drawBackground(ctx);
       this.renderTransactionValue(ctx, orderData.volume);
-      this.renderAmounts(ctx);
+      this.renderAmounts(
+        ctx,
+        orderData.source_swap_amount,
+        orderData.destination_swap_amount
+      );
       await this.renderChainIcons(ctx);
-      this.renderTimeMetrics(ctx, orderData.timeSaved || "31m 54s");
-      this.renderCostMetrics(ctx, orderData.feeSaved);
+      this.renderTimeMetrics(
+        ctx,
+        orderData.timeSaved,
+        orderData.totalTimeOfOthersMax
+      );
+      this.renderCostMetrics(
+        ctx,
+        orderData.feeSaved,
+        orderData.totalAmountOthersMax
+      );
 
       return this.saveImage(canvas, orderData.create_order_id);
     } catch (error) {
@@ -161,7 +173,11 @@ export class GardenOrderTemplate implements ImageTemplate {
   /**
    * Renders source and destination amounts
    */
-  private renderAmounts(ctx: CanvasRenderingContext2D): void {
+  private renderAmounts(
+    ctx: CanvasRenderingContext2D,
+    source_amount: string,
+    destination_amount: string
+  ): void {
     ctx.fillStyle = "#444466";
     ctx.textAlign = "left";
 
@@ -178,7 +194,7 @@ export class GardenOrderTemplate implements ImageTemplate {
     ctx.shadowBlur = 0;
     ctx.shadowOffsetX = 3;
     ctx.shadowOffsetY = 0;
-    ctx.fillText("5.1234", 90, 395);
+    ctx.fillText(source_amount, 90, 395);
     // Reset shadow after drawing
     ctx.shadowOffsetX = 0;
 
@@ -186,7 +202,7 @@ export class GardenOrderTemplate implements ImageTemplate {
     ctx.shadowBlur = 0;
     ctx.shadowOffsetX = 3;
     ctx.shadowOffsetY = 0;
-    ctx.fillText("5.1234", 570, 395);
+    ctx.fillText(destination_amount, 570, 395);
     ctx.shadowOffsetX = 0;
   }
 
@@ -211,7 +227,8 @@ export class GardenOrderTemplate implements ImageTemplate {
    */
   private renderTimeMetrics(
     ctx: CanvasRenderingContext2D,
-    timeSaved: string
+    timeSaved: string,
+    totalTime: string
   ): void {
     // Time saved
     ctx.fillStyle = "#5FC29F";
@@ -232,7 +249,7 @@ export class GardenOrderTemplate implements ImageTemplate {
     ctx.shadowOffsetY = 0;
     ctx.font = "bold 28px Satoshi";
     ctx.textAlign = "right";
-    ctx.fillText("10m 24s", 445, 560);
+    ctx.fillText(totalTime, 445, 560);
     ctx.shadowOffsetX = 0;
   }
 
@@ -241,7 +258,8 @@ export class GardenOrderTemplate implements ImageTemplate {
    */
   private renderCostMetrics(
     ctx: CanvasRenderingContext2D,
-    feeSaved: number
+    feeSaved: number,
+    totalFee: number
   ): void {
     // Cost saved
     ctx.fillStyle = "#5FC29F";
@@ -262,7 +280,7 @@ export class GardenOrderTemplate implements ImageTemplate {
     ctx.shadowOffsetY = 0;
     ctx.font = "bold 28px Satoshi";
     ctx.textAlign = "right";
-    ctx.fillText("$120.42", 910, 560);
+    ctx.fillText(totalFee.toString(), 910, 560);
     ctx.shadowOffsetX = 1;
   }
 
