@@ -109,8 +109,8 @@ export class GardenOrderTemplate implements ImageTemplate {
       this.renderTransactionValue(ctx, orderData.volume);
       this.renderAmounts(
         ctx,
-        orderData.source_swap_amount,
-        orderData.destination_swap_amount
+        orderData.source_amount,
+        orderData.destination_amount
       );
       await this.renderChainIcons(ctx);
       this.renderTimeMetrics(
