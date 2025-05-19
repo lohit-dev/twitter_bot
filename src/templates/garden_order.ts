@@ -162,7 +162,7 @@ export class GardenOrderTemplate implements ImageTemplate {
     ctx.fillStyle = "#554B6A";
     ctx.shadowColor = ctx.fillStyle;
     ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 1;
+    // ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 0;
     ctx.font = "bold 25px Satoshi";
     ctx.textAlign = "right";
@@ -234,7 +234,7 @@ export class GardenOrderTemplate implements ImageTemplate {
     ctx.fillStyle = "#5FC29F";
     ctx.shadowColor = ctx.fillStyle;
     ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 3;
+    // ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 0;
     ctx.font = "bold 60px Satoshi";
     ctx.textAlign = "left";
@@ -245,7 +245,7 @@ export class GardenOrderTemplate implements ImageTemplate {
     ctx.fillStyle = "#444466";
     ctx.shadowColor = ctx.fillStyle;
     ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 1;
+    // ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 0;
     ctx.font = "bold 25px Satoshi";
     ctx.textAlign = "right";
@@ -265,7 +265,7 @@ export class GardenOrderTemplate implements ImageTemplate {
     ctx.fillStyle = "#5FC29F";
     ctx.shadowColor = ctx.fillStyle;
     ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 1;
+    // ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 0;
     ctx.font = "bold 60px Satoshi";
     ctx.textAlign = "left";
@@ -276,12 +276,12 @@ export class GardenOrderTemplate implements ImageTemplate {
     ctx.fillStyle = "#444466";
     ctx.shadowColor = ctx.fillStyle;
     ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 1;
+    // ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 0;
     ctx.font = "bold 25px Satoshi";
     ctx.textAlign = "right";
     ctx.fillText(totalFee.toString(), 910, 560);
-    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetX = 0;
   }
 
   /**

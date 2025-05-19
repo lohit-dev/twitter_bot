@@ -239,9 +239,7 @@ export async function fetchHighVolumeOrders(
   try {
     logger.info("Fetching new high-volume orders...");
 
-    // Only fetch network info if not provided (fallback)
     if (!networkInfo) {
-      // Use environment variable for API URL instead of hardcoding
       const apiUrl =
         process.env.NETWORK_API_URL || "https://api.garden.finance/info/assets";
       logger.info(`Fetching network info from ${apiUrl}`);
@@ -250,10 +248,9 @@ export async function fetchHighVolumeOrders(
 
     try {
       const highVolumeOrders: SuccessfulOrder[] = [];
-      // Make these configurable instead of hardcoded
       const pageSize = process.env.PAGE_SIZE
         ? parseInt(process.env.PAGE_SIZE)
-        : 10;
+        : 2;
       const page = process.env.PAGE_NUMBER
         ? parseInt(process.env.PAGE_NUMBER)
         : 1;
@@ -262,30 +259,29 @@ export async function fetchHighVolumeOrders(
         `Fetching matched orders page ${page} with ${pageSize} items per page`
       );
       const matchedOrdersResponse = await getMatchedOrder(pageSize, page);
+      const matchedOrders = matchedOrdersResponse.data;
 
-      if (!Array.isArray(matchedOrdersResponse)) {
-        logger.info("Matched orders response is not an array");
+      if (!Array.isArray(matchedOrders)) {
+        logger.info("Matched orders data is not an array");
         return [];
       }
 
-      if (matchedOrdersResponse.length === 0) {
+      if (matchedOrders.length === 0) {
         logger.info("No orders found in the response");
         return [];
       }
 
-      logger.info(
-        `Received ${matchedOrdersResponse.length} orders in the response`
-      );
+      logger.info(`Received ${matchedOrders.length} orders in the response`);
 
       // Log all matched orders with their IDs
       logger.info(
-        `Found ${matchedOrdersResponse.length} matched orders: ${matchedOrdersResponse
+        `Found ${matchedOrders.length} matched orders: ${matchedOrders
           .map((order) => order.create_order.create_id)
           .join(", ")}`
       );
 
       // Process each matched order
-      for (const order of matchedOrdersResponse) {
+      for (const order of matchedOrders) {
         const orderId = order.create_order.create_id;
 
         // Log the current order being processed

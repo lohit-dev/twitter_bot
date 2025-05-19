@@ -64,17 +64,26 @@ export async function getAssetInfo(
   }
 }
 
+// Define the paginated response structure
+export interface PaginatedMatchedOrderResponse {
+  data: MatchedOrder[];
+  page: number;
+  total_pages: number;
+  total_items: number;
+  per_page: number;
+}
+
 export async function getMatchedOrder(
   per_page: number,
   page: number = 1
-): Promise<MatchedOrder> {
+): Promise<PaginatedMatchedOrderResponse> {
   try {
     logger.info("Fetching matched order");
     const res = await axios.get(
       `https://xcgg04skw4k044ws8swok4gw.65.109.18.60.sslip.io/matched?page=${page}&per_page=${per_page}`
     );
 
-    return res.data as MatchedOrder;
+    return res.data as PaginatedMatchedOrderResponse;
   } catch (err) {
     if (axios.isAxiosError(err)) {
       logger.error(`Hashira API request failed: ${err.message}`, {
