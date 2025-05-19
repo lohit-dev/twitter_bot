@@ -12,11 +12,12 @@ import {
 } from "./constants";
 import { BigNumber } from "bignumber.js";
 import axios from "axios";
+import { logger } from "../../utils/logger";
 
 export const getRelayFee = async (
   srcAsset: Asset,
   destAsset: Asset,
-  amount: number,
+  amount: number
 ): Promise<comparisonMetric> => {
   const srcFormat = getFormattedAsset(srcAsset, SwapPlatform.RELAY) as {
     chainId: string;
@@ -28,6 +29,9 @@ export const getRelayFee = async (
   };
 
   if (!srcFormat || !destFormat) {
+    logger.warn(
+      `Relay: Asset mapping not found for ${srcAsset.chain}:${srcAsset.symbol} -> ${destAsset.chain}:${destAsset.symbol}`
+    );
     return { fee: 0, time: 0 };
   }
 
@@ -67,7 +71,12 @@ export const getRelayFee = async (
       headers: { "Content-Type": "application/json" },
     });
 
-    if (!data.fees) return { fee: 0, time: 0 };
+    logger.info(`Relay API response: ${JSON.stringify(data)}`);
+
+    if (!data.fees) {
+      logger.warn(`Relay: No fees found in response`);
+      return { fee: 0, time: 0 };
+    }
 
     const totalFee =
       Number(data.details.currencyIn.amountUsd) -
@@ -78,7 +87,8 @@ export const getRelayFee = async (
       time = RELAY_BTC_SWAP_TIME;
 
     return { fee: totalFee, time };
-  } catch {
+  } catch (error) {
+    logger.error(`Relay API error: ${error}`);
     return { fee: 0, time: 0 };
   }
 };

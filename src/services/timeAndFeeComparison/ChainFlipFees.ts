@@ -8,11 +8,12 @@ import {
   SwapPlatform,
 } from "./constants";
 import axios from "axios";
+import { logger } from "../../utils/logger";
 
 export const getChainflipFee = async (
   srcAsset: Asset,
   destAsset: Asset,
-  amount: number,
+  amount: number
 ): Promise<comparisonMetric> => {
   if (!srcAsset || !destAsset) {
     return { fee: 0, time: 0 };
@@ -20,17 +21,24 @@ export const getChainflipFee = async (
 
   const srcFormat = getFormattedAsset(
     srcAsset,
-    SwapPlatform.CHAINFLIP,
+    SwapPlatform.CHAINFLIP
   ) as ChainflipAssetAndChain;
 
   const destFormat = getFormattedAsset(
     destAsset,
-    SwapPlatform.CHAINFLIP,
+    SwapPlatform.CHAINFLIP
   ) as ChainflipAssetAndChain;
 
   if (!srcFormat || !destFormat) {
+    logger.warn(
+      `Chainflip: Asset mapping not found for ${srcAsset.chain}:${srcAsset.symbol} -> ${destAsset.chain}:${destAsset.symbol}`
+    );
     return { fee: 0, time: 0 };
   }
+
+  // logger.info(`Chainflip: Found asset mappings:
+  //   Source: ${JSON.stringify(srcFormat)}
+  //   Destination: ${JSON.stringify(destFormat)}`);
 
   const sendAmount = (amount * 10 ** srcAsset.decimals).toString();
 
@@ -91,21 +99,21 @@ export const getChainflipFee = async (
 
       const { data: priceData } = await axios.post<ChainflipPriceResponse>(
         API_URLS.fiatValue,
-        priceQuery,
+        priceQuery
       );
 
       const srcTokenPrice =
         priceData.data.tokenPrices.find(
           (price) =>
             price.chainId === getChainId(srcFormat.chain.toString()) &&
-            price.address.toLowerCase() === srcFormat.address.toLowerCase(),
+            price.address.toLowerCase() === srcFormat.address.toLowerCase()
         )?.usdPrice || 0;
 
       const destTokenPrice =
         priceData.data.tokenPrices.find(
           (price) =>
             price.chainId === getChainId(destFormat.chain.toString()) &&
-            price.address.toLowerCase() === destFormat.address.toLowerCase(),
+            price.address.toLowerCase() === destFormat.address.toLowerCase()
         )?.usdPrice || 0;
 
       const inputAmountInUSD = amount * srcTokenPrice;
@@ -125,7 +133,10 @@ export const getChainflipFee = async (
     } else {
       return { fee: 0, time: 0 };
     }
-  } catch {
+  } catch (error) {
+    logger.error(
+      `Chainflip fee calculation error for ${srcAsset.symbol}->${destAsset.symbol}: ${error}`
+    );
     return { fee: 0, time: 0 };
   }
 };

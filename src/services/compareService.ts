@@ -31,9 +31,18 @@ export async function compareWithOtherServices(
   try {
     // Get fees and times from different services
     const [chainflipMetrics, thorMetrics, relayMetrics] = await Promise.all([
-      getChainflipFee(srcAsset, destAsset, amount),
-      getThorFee(srcAsset, destAsset, amount),
-      getRelayFee(srcAsset, destAsset, amount),
+      getChainflipFee(srcAsset, destAsset, amount).catch((error) => {
+        logger.error(`Chainflip service error: ${error}`);
+        return { fee: 0, time: 0 };
+      }),
+      getThorFee(srcAsset, destAsset, amount).catch((error) => {
+        logger.error(`Thor service error: ${error}`);
+        return { fee: 0, time: 0 };
+      }),
+      getRelayFee(srcAsset, destAsset, amount).catch((error) => {
+        logger.error(`Relay service error: ${error}`);
+        return { fee: 0, time: 0 };
+      }),
     ]);
 
     // Find the maximum fee and time among all services
@@ -43,7 +52,6 @@ export async function compareWithOtherServices(
       { name: SwapPlatform.RELAY, ...relayMetrics },
     ];
 
-    // Filter out services with zero values (indicating failure or unsupported routes)
     const validServices = services.filter(
       (service) => service.fee > 0 && service.time > 0
     );
@@ -79,10 +87,20 @@ export async function compareWithOtherServices(
     // Calculate fee saved
     const feeSaved = maxFeeService.fee - gardenFee;
 
+    // Format the values for display
+    const formattedTimeSaved = formatTimeDiff(timeSavedSeconds);
+    const formattedMaxTime = formatTime(maxTimeService.time);
+    const formattedMaxFee = maxFeeService.fee.toLocaleString("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
     return {
-      totalTimeOfOthersMax: formatTime(maxTimeService.time),
-      totalAmountOthersMax: maxTimeService.name,
-      timeSaved: formatTimeDiff(maxTimeService.time, gardenSwapTime),
+      totalTimeOfOthersMax: formattedMaxTime,
+      totalAmountOthersMax: formattedMaxFee,
+      timeSaved: formattedTimeSaved,
       timeSavedMinutes,
       feeSaved,
     };

@@ -5,6 +5,7 @@ import { twitterService } from "./services/twitter";
 import { generateMetricsImage } from "./utils/image_generator";
 import { SuccessfulOrder } from "./types";
 import { getAssetInfo, HashiraNetworkResponse } from "./services/api";
+import * as fs from "fs/promises";
 
 // Load environment variables
 dotenv.config();
@@ -16,7 +17,29 @@ const VOLUME_THRESHOLD = process.env.VOLUME_THRESHOLD
   ? parseFloat(process.env.VOLUME_THRESHOLD)
   : 300;
 
+// Initialize processed orders set
 const processedOrderIds = new Set<string>();
+
+// Save processed orders to file
+async function saveProcessedOrders() {
+  await fs.writeFile(
+    "processed_orders.json",
+    JSON.stringify([...processedOrderIds])
+  );
+}
+
+// Load processed orders from storage
+async function loadProcessedOrders() {
+  try {
+    const processedOrders = await fs.readFile("processed_orders.json", "utf8");
+    JSON.parse(processedOrders).forEach((id: string) =>
+      processedOrderIds.add(id)
+    );
+    logger.info(`Loaded ${processedOrderIds.size} processed orders`);
+  } catch (error) {
+    logger.info("No existing processed orders found");
+  }
+}
 
 /**
  * Processes a high volume order by generating an image and posting to Twitter
@@ -24,85 +47,87 @@ const processedOrderIds = new Set<string>();
  */
 async function processHighVolumeOrder(order: SuccessfulOrder): Promise<void> {
   try {
+    // Skip if already processed
+    if (processedOrderIds.has(order.create_order_id)) {
+      logger.info(`Skipping already processed order: ${order.create_order_id}`);
+      return;
+    }
+
     logger.info(`Processing high volume order: ${order.create_order_id}`);
+
+    // Verify we have valid comparison data
+    if (
+      !order.feeSaved ||
+      !order.timeSaved ||
+      !order.totalTimeOfOthersMax ||
+      !order.totalAmountOthersMax
+    ) {
+      logger.warn(`Skipping order ${order.create_order_id} - Missing comparison data:
+        feeSaved: ${order.feeSaved}
+        timeSaved: ${order.timeSaved}
+        totalTimeOfOthersMax: ${order.totalTimeOfOthersMax}
+        totalAmountOthersMax: ${order.totalAmountOthersMax}
+      `);
+      return;
+    }
+
+    // Only proceed if we have meaningful comparisons (fee saved > 0)
+    if (order.feeSaved <= 0) {
+      logger.info(
+        `Skipping order ${order.create_order_id} - No fee savings (${order.feeSaved})`
+      );
+      return;
+    }
 
     // Generate tweet message
     const tweetMessage = `🚨 High Swap Alert! 🚨\n\n${order.volume.toFixed(2)} USD from ${order.source_chain} to ${order.destination_chain}\n\n#DeFi #Crypto #CrossChain`;
 
     // Generate order image
+    logger.info(
+      `Generating image for order ${order.create_order_id} with comparison data`
+    );
     const imagePath = await generateMetricsImage(order, "garden");
+
+    // {"create_order_id":"bd4d1c864119c7bad2dde31b0b64e4bef77e9a68a1e16433f9c845dc53e7d9af","created_at":"2025-05-19T09:08:09.810539Z","destination_amount":"0.00011964","destination_asset":"0x795dcb58d1cd4789169d5f938ea05e17eceb68ca","destination_chain":"ethereum","destination_swap_amount":"11964","feeSaved":2.09037664,"input_token_price":103281.95450855308,"output_token_price":103281.95450855308,"service":"swap-metrics-bot","source_amount":"0.00012","source_asset":"primary","source_chain":"bitcoin","source_swap_amount":"12000","timeSaved":"+10m 0s","timeSavedMinutes":10,"timestamp":"2025-05-19T09:08:09.810Z","totalAmountOthersMax":"relay","totalTimeOfOthersMax":"20m 0s","volume":24.750487578429663}
 
     // Post to Twitter
     const response = await twitterService.postTweet(tweetMessage, imagePath);
     logger.info(`Successfully posted to Twitter with ID: ${response.id}`);
 
-    // Mark order as processed
+    // Mark order as processed and save to file
     processedOrderIds.add(order.create_order_id);
+    await saveProcessedOrders();
   } catch (error) {
-    logger.error("Error processing high volume order:", error);
+    logger.error(`Error processing order ${order.create_order_id}:`, error);
   }
 }
 
-/**
- * Polls for high volume orders and processes them
- * @param networkInfo The cached network information
- */
-async function pollForHighVolumeOrders(
-  networkInfo: HashiraNetworkResponse
-): Promise<void> {
-  try {
-    logger.info(
-      `Polling for high volume orders with threshold: ${VOLUME_THRESHOLD}`
-    );
+// Main polling function
+async function startPolling() {
+  // Load processed orders first
+  await loadProcessedOrders();
 
-    logger.info("Fetching...");
-    // Fetch high volume orders
-    const highVolumeOrders = await fetchHighVolumeOrders(
-      VOLUME_THRESHOLD,
-      processedOrderIds,
-      networkInfo
-    );
-
-    // Process each high volume order
-    for (const order of highVolumeOrders.slice(0, ORDERS_PER_POLL)) {
-      await processHighVolumeOrder(order);
-    }
-  } catch (error) {
-    logger.error("Error polling for high volume orders:", error);
-  } finally {
-    // Schedule next poll
-    setTimeout(() => pollForHighVolumeOrders(networkInfo), POLLING_INTERVAL_MS);
-  }
-}
-
-/**
- * Main function to start the Twitter bot
- */
-async function main(): Promise<void> {
-  try {
-    logger.info("Starting Twitter bot for high volume orders");
-
-    // Fetch network information once at startup
-    const networkInfo = await getAssetInfo(
-      "https://api.garden.finance/info/assets"
-    );
-    logger.info("Network information cached for future use");
-
-    // Check Twitter authentication
-    const authStatus = twitterService.getStatus();
-    if (!authStatus.authenticated) {
-      logger.warn("Twitter is not authenticated. Please authenticate first.");
-    } else {
-      logger.info(
-        "Twitter is authenticated. Starting polling for high volume orders."
+  // Start polling loop
+  while (true) {
+    try {
+      const orders = await fetchHighVolumeOrders(
+        VOLUME_THRESHOLD,
+        processedOrderIds
       );
+
+      for (const order of orders.slice(0, ORDERS_PER_POLL)) {
+        await processHighVolumeOrder(order);
+      }
+    } catch (error) {
+      logger.error("Error in polling loop:", error);
     }
 
-    pollForHighVolumeOrders(networkInfo);
-  } catch (error) {
-    logger.error("Error starting Twitter bot:", error);
-    process.exit(1);
+    await new Promise((resolve) => setTimeout(resolve, POLLING_INTERVAL_MS));
   }
 }
 
-main();
+// Start the bot
+startPolling().catch((error) => {
+  logger.error("Fatal error in bot:", error);
+  process.exit(1);
+});

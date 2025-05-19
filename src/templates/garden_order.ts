@@ -35,13 +35,10 @@ const registerSatoshiFont = (): void => {
           family: "Satoshi",
           weight: weight,
         });
-        logger.info(`Registered Satoshi ${weight} font`);
       } else {
         logger.warn(`Satoshi ${weight} font file not found at ${fontPath}`);
       }
     });
-
-    logger.info("Satoshi font registration completed");
   } catch (error) {
     logger.warn(
       `Failed to register Satoshi fonts: ${error.message}. Falling back to system fonts.`

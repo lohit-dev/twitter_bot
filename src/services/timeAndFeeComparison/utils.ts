@@ -39,10 +39,9 @@ export const parseTime = (time: string | undefined) => {
   return minutes * 60 + seconds;
 };
 
-export const formatTimeDiff = (time: number, gardenSwapTime: string) => {
-  const diff = time - parseTime(gardenSwapTime);
-  const sign = diff >= 0 ? "+" : "-";
-  return `${sign}${formatTime(Math.abs(diff))}`;
+export const formatTimeDiff = (diffSeconds: number): string => {
+  const sign = diffSeconds >= 0 ? "+" : "-";
+  return `${sign}${formatTime(Math.abs(diffSeconds))}`;
 };
 
 export const getFormattedAsset = (asset: Asset, type: AssetMappingType) =>

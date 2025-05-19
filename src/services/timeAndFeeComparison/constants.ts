@@ -1,3 +1,4 @@
+import { Network } from "@gardenfi/utils";
 import {
   Assets,
   Chain,
@@ -164,10 +165,10 @@ export type AssetMappingType = keyof AssetMappings;
 
 export const API_URLS = {
   thorSwap: "https://api.swapkit.dev/quote",
-  relay:
-    // network === Network.MAINNET
-    // ? "https://api.relay.link/quote" :
-    "https://api.testnets.relay.link/quote",
+  relay: "https://api.relay.link/quote",
+  // network === Network.MAINNET
+  //   ? "https://api.relay.link/quote"
+  // : "https://api.testnets.relay.link/quote",
   chainflip: "https://chainflip-swap.chainflip.io/v2/quote",
   fiatValue: "https://cache-service.chainflip.io/graphql",
 };

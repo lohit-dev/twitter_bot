@@ -29,23 +29,23 @@ export async function getAssetInfo(
   url: string
 ): Promise<HashiraNetworkResponse> {
   try {
-    logger.info("Fetching network and asset information from Hashira API");
+    // logger.info("Fetching network and asset information from Hashira API");
     const response = await axios.get<HashiraNetworkResponse>(url);
 
     const networks = Object.keys(response.data);
-    logger.info(
-      `Successfully received information for ${networks.length} networks: ${networks.join(", ")}`
-    );
+    // logger.info(
+    //   `Successfully received information for ${networks.length} networks: ${networks.join(", ")}`
+    // );
 
     // Log asset information for each network
     for (const [network, info] of Object.entries(response.data)) {
-      logger.info(
-        `Network ${network} has ${info.assetConfig.length} assets configured`
-      );
+      // logger.info(
+      //   `Network ${network} has ${info.assetConfig.length} assets configured`
+      // );
       info.assetConfig.forEach((asset) => {
-        logger.debug(
-          `Asset on ${network}: ${asset.symbol} (${asset.name}) with ${asset.decimals} decimals`
-        );
+        // logger.debug(
+        //   `Asset on ${network}: ${asset.symbol} (${asset.name}) with ${asset.decimals} decimals`
+        // );
       });
     }
 
@@ -78,7 +78,6 @@ export async function getMatchedOrder(
   page: number = 1
 ): Promise<PaginatedMatchedOrderResponse> {
   try {
-    logger.info("Fetching matched order");
     const res = await axios.get(
       `https://xcgg04skw4k044ws8swok4gw.65.109.18.60.sslip.io/matched?page=${page}&per_page=${per_page}`
     );

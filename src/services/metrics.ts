@@ -1,6 +1,6 @@
 import { logger } from "../utils/logger";
 import { SuccessfulOrder } from "../types";
-import { getAssetInfo, getMatchedOrder, NetworkInfo } from "./api";
+import { getAssetInfo, getMatchedOrder, HashiraNetworkResponse } from "./api";
 import { formatCurrency } from "../utils/formatters";
 import { MatchedOrder, Asset, Chain } from "@gardenfi/orderbook";
 import { compareWithOtherServices } from "./compareService";
@@ -30,21 +30,17 @@ function getTimeEstimates(chain: string): {
  */
 function getDecimals(
   { chain, asset }: { chain: string; asset: string },
-  networkInfo: NetworkInfo
+  networkInfo: HashiraNetworkResponse
 ): number {
   try {
-    const normalizedChain = chain.toLowerCase();
-
-    // Find the network that matches the chain
-    for (const [networkId, network] of Object.entries(networkInfo)) {
-      if (network.name.toLowerCase() === normalizedChain) {
-        for (const assetConfig of network.assetConfig) {
-          if (
-            assetConfig.symbol.toLowerCase() === asset.toLowerCase() ||
-            assetConfig.tokenAddress.toLowerCase() === asset.toLowerCase()
-          ) {
-            return assetConfig.decimals;
-          }
+    const networkData = networkInfo[chain];
+    if (networkData && networkData.assetConfig) {
+      for (const assetConfig of networkData.assetConfig) {
+        if (
+          assetConfig.atomicSwapAddress &&
+          assetConfig.atomicSwapAddress.toLowerCase() === asset.toLowerCase()
+        ) {
+          return assetConfig.decimals;
         }
       }
     }
@@ -65,10 +61,10 @@ function getDecimals(
  * @param networkInfo Network information for decimal calculation
  * @returns A SuccessfulOrder with calculated volume
  */
-function convertToSuccessfulOrder(
+export async function convertToSuccessfulOrder(
   matchedOrder: MatchedOrder,
-  networkInfo: NetworkInfo
-): SuccessfulOrder | null {
+  networkInfo: HashiraNetworkResponse
+): Promise<SuccessfulOrder | null> {
   try {
     if (
       !matchedOrder.source_swap.redeem_tx_hash ||
@@ -126,14 +122,36 @@ function convertToSuccessfulOrder(
     const sourceChain = matchedOrder.create_order.source_chain;
     const sourceAssetSymbol = matchedOrder.create_order.source_asset;
 
+    // Get the network info for the source chain
+    const sourceNetworkInfo = networkInfo[sourceChain];
+    if (!sourceNetworkInfo) {
+      logger.warn(`Network info not found for chain: ${sourceChain}`);
+      return null;
+    }
+
+    // logger.info(`Network info for ${sourceChain}:`, sourceNetworkInfo);
+
     // Find the asset config in networkInfo
-    const sourceAssetConfig = networkInfo.assetConfig.find(
-      (asset) => asset.symbol === sourceAssetSymbol
+    const sourceAssetConfig = sourceNetworkInfo.assetConfig?.find(
+      (asset) =>
+        asset.symbol === sourceAssetSymbol ||
+        asset.tokenAddress?.toLowerCase() === sourceAssetSymbol.toLowerCase()
     );
+
+    // logger.info(
+    //   `Found asset config for ${sourceAssetSymbol}:`,
+    //   sourceAssetConfig
+    // );
+
+    // If we found a config, use its values, otherwise use the token address as symbol
+    const sourceSymbol = sourceAssetConfig?.symbol || sourceAssetSymbol;
+    const sourceName = sourceAssetConfig?.name || sourceSymbol;
+    const sourceTokenAddress =
+      sourceAssetConfig?.tokenAddress || sourceAssetSymbol;
 
     const srcAsset = {
       chain: sourceChain as Chain,
-      symbol: sourceAssetSymbol,
+      symbol: sourceSymbol,
       decimals: getDecimals(
         {
           chain: sourceChain,
@@ -141,37 +159,92 @@ function convertToSuccessfulOrder(
         },
         networkInfo
       ),
-      name: sourceAssetConfig?.name || sourceAssetSymbol,
-      atomicSwapAddress: sourceAssetConfig?.atomicSwapAddress || "",
-      tokenAddress: sourceAssetConfig?.tokenAddress || "",
+      name: sourceName,
+      atomicSwapAddress:
+        sourceAssetConfig?.atomicSwapAddress || sourceTokenAddress,
+      tokenAddress: sourceTokenAddress,
     } as Asset;
+
+    // logger.info("------------------------");
+    // logger.info(
+    //   `Source Asset constructed: ${JSON.stringify(srcAsset, null, 2)}`
+    // );
+    // logger.info("------------------------");
 
     // Find the destination asset config
     const destChain = matchedOrder.create_order.destination_chain;
     const destAssetSymbol = matchedOrder.create_order.destination_asset;
 
-    // Find the asset config in networkInfo
-    const destAssetConfig = networkInfo.assetConfig.find(
-      (asset) => asset.symbol === destAssetSymbol
+    // Get the network info for the destination chain
+    const destNetworkInfo = networkInfo[destChain];
+    if (!destNetworkInfo) {
+      logger.warn(`Network info not found for chain: ${destChain}`);
+      return null;
+    }
+
+    // logger.info(`Network info for ${destChain}:`, destNetworkInfo);
+
+    // Find the asset config in networkInfo that matches either the symbol or token address
+    const destAssetConfig = destNetworkInfo.assetConfig?.find(
+      (asset) =>
+        asset.symbol === destAssetSymbol ||
+        asset.tokenAddress?.toLowerCase() === destAssetSymbol.toLowerCase() ||
+        asset.atomicSwapAddress?.toLowerCase() === destAssetSymbol.toLowerCase()
     );
+
+    // logger.info(`Found asset config for ${destAssetSymbol}:`, destAssetConfig);
+
+    if (!destAssetConfig) {
+      logger.warn(
+        `No asset config found for ${destAssetSymbol} on chain ${destChain}`
+      );
+      return null;
+    }
 
     const destAsset = {
       chain: destChain as Chain,
-      symbol: destAssetSymbol,
-      decimals: getDecimals(
-        {
-          chain: destChain,
-          asset: destAssetSymbol,
-        },
-        networkInfo
-      ),
-      name: destAssetConfig?.name || destAssetSymbol,
-      atomicSwapAddress: destAssetConfig?.atomicSwapAddress || "",
-      tokenAddress: destAssetConfig?.tokenAddress || "",
+      symbol: destAssetConfig.symbol,
+      decimals: destAssetConfig.decimals,
+      name: destAssetConfig.name,
+      atomicSwapAddress: destAssetConfig.atomicSwapAddress,
+      tokenAddress: destAssetConfig.tokenAddress,
     } as Asset;
 
-    // Compare with other services (this will be an async call)
-    // For now, we'll return the basic order and update it later with the comparison results
+    // logger.info("------------------------");
+    // logger.info(
+    //   `Destination Asset constructed: ${JSON.stringify(destAsset, null, 2)}`
+    // );
+    // logger.info("------------------------");
+
+    // First get comparison results
+    let comparisonResults;
+    try {
+      comparisonResults = await compareWithOtherServices(
+        srcAsset,
+        destAsset,
+        sourceAmount,
+        gardenFee,
+        gardenSwapTime
+      );
+
+      // logger.info(`Comparison results obtained:
+      //   timeSaved: ${comparisonResults.timeSaved}
+      //   feeSaved: ${comparisonResults.feeSaved}
+      //   totalAmountOthersMax: ${comparisonResults.totalAmountOthersMax}
+      //   totalTimeOfOthersMax: ${comparisonResults.totalTimeOfOthersMax}
+      // `);
+    } catch (error) {
+      logger.error("Error getting comparison results:", error);
+      comparisonResults = {
+        timeSaved: "0m 0s",
+        timeSavedMinutes: 0,
+        feeSaved: 0,
+        totalAmountOthersMax: "$0",
+        totalTimeOfOthersMax: "0s",
+      };
+    }
+
+    // Now construct the successful order with comparison results
     const successfulOrder = {
       create_order_id: matchedOrder.create_order.create_id,
       source_chain: matchedOrder.create_order.source_chain,
@@ -187,35 +260,13 @@ function convertToSuccessfulOrder(
       volume,
       source_swap_amount: matchedOrder.source_swap.amount,
       destination_swap_amount: matchedOrder.destination_swap.amount,
-      // Initialize comparison metrics with default values
-      // These will be updated by the compareWithOtherServices call with the actual max values from other services
-      timeSaved: "0m 0s",
-      timeSavedMinutes: 0,
-      feeSaved: 0,
-      // These will be set to the maximum fee and time from other services after comparison
-      totalAmountOthersMax: "$0",
-      totalTimeOfOthersMax: "0s",
+      // Set comparison metrics from the results
+      timeSaved: comparisonResults.timeSaved,
+      timeSavedMinutes: comparisonResults.timeSavedMinutes,
+      feeSaved: comparisonResults.feeSaved,
+      totalAmountOthersMax: comparisonResults.totalAmountOthersMax,
+      totalTimeOfOthersMax: comparisonResults.totalTimeOfOthersMax,
     };
-
-    compareWithOtherServices(
-      srcAsset,
-      destAsset,
-      sourceAmount,
-      gardenFee,
-      gardenSwapTime
-    )
-      .then((comparisonResults) => {
-        successfulOrder.timeSaved = comparisonResults.timeSaved;
-        successfulOrder.timeSavedMinutes = comparisonResults.timeSavedMinutes;
-        successfulOrder.feeSaved = comparisonResults.feeSaved;
-        successfulOrder.totalAmountOthersMax =
-          comparisonResults.totalAmountOthersMax;
-        successfulOrder.totalTimeOfOthersMax =
-          comparisonResults.totalTimeOfOthersMax;
-      })
-      .catch((error) => {
-        logger.error("Error updating order with comparison results:", error);
-      });
 
     return successfulOrder;
   } catch (error) {
@@ -234,15 +285,16 @@ function convertToSuccessfulOrder(
 export async function fetchHighVolumeOrders(
   volumeThreshold: number = 100,
   processedOrderIds: Set<string> = new Set(),
-  networkInfo?: any
+  networkInfo?: HashiraNetworkResponse
 ): Promise<SuccessfulOrder[]> {
   try {
-    logger.info("Fetching new high-volume orders...");
+    // logger.info("Fetching new high-volume orders...");
 
     if (!networkInfo) {
       const apiUrl =
-        process.env.NETWORK_API_URL || "https://api.garden.finance/info/assets";
-      logger.info(`Fetching network info from ${apiUrl}`);
+        process.env.NETWORK_API_URL ||
+        "http://api.garden.finance/info/assets/mainnet";
+      // logger.info(`Fetching network info from ${apiUrl}`);
       networkInfo = await getAssetInfo(apiUrl);
     }
 
@@ -250,14 +302,11 @@ export async function fetchHighVolumeOrders(
       const highVolumeOrders: SuccessfulOrder[] = [];
       const pageSize = process.env.PAGE_SIZE
         ? parseInt(process.env.PAGE_SIZE)
-        : 2;
+        : 1;
       const page = process.env.PAGE_NUMBER
         ? parseInt(process.env.PAGE_NUMBER)
         : 1;
 
-      logger.info(
-        `Fetching matched orders page ${page} with ${pageSize} items per page`
-      );
       const matchedOrdersResponse = await getMatchedOrder(pageSize, page);
       const matchedOrders = matchedOrdersResponse.data;
 
@@ -270,15 +319,6 @@ export async function fetchHighVolumeOrders(
         logger.info("No orders found in the response");
         return [];
       }
-
-      logger.info(`Received ${matchedOrders.length} orders in the response`);
-
-      // Log all matched orders with their IDs
-      logger.info(
-        `Found ${matchedOrders.length} matched orders: ${matchedOrders
-          .map((order) => order.create_order.create_id)
-          .join(", ")}`
-      );
 
       // Process each matched order
       for (const order of matchedOrders) {
@@ -293,22 +333,15 @@ export async function fetchHighVolumeOrders(
           continue;
         }
 
-        // Log order details before conversion
-        logger.info(
-          `Converting order ${orderId} - Source: ${order.create_order.source_chain}:${order.create_order.source_asset}, ` +
-            `Destination: ${order.create_order.destination_chain}:${order.create_order.destination_asset}`
+        const successfulOrder = await convertToSuccessfulOrder(
+          order,
+          networkInfo
         );
-
-        const successfulOrder = convertToSuccessfulOrder(order, networkInfo);
 
         if (!successfulOrder) {
           logger.info(`Failed to convert order ID: ${orderId}`);
           continue;
         }
-
-        logger.info(
-          `Order ${orderId} converted successfully with volume: ${formatCurrency(successfulOrder.volume)}`
-        );
 
         if (successfulOrder.volume >= volumeThreshold) {
           highVolumeOrders.push(successfulOrder);
@@ -321,10 +354,6 @@ export async function fetchHighVolumeOrders(
           );
         }
       }
-
-      logger.info(
-        `Found ${highVolumeOrders.length} new high-volume orders exceeding threshold of ${formatCurrency(volumeThreshold)}`
-      );
 
       highVolumeOrders.sort((a, b) => b.volume - a.volume);
 

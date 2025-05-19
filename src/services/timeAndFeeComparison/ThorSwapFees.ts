@@ -5,16 +5,20 @@ import { API_URLS, SwapPlatform } from "./constants";
 import { getFormattedAsset } from "./utils";
 import axios from "axios";
 import BigNumber from "bignumber.js";
+import { logger } from "../../utils/logger";
 
 export const getThorFee = async (
   srcAsset: Asset,
   destAsset: Asset,
-  amount: number,
+  amount: number
 ): Promise<comparisonMetric> => {
   const sellFormat = getFormattedAsset(srcAsset, SwapPlatform.THORSWAP);
   const buyFormat = getFormattedAsset(destAsset, SwapPlatform.THORSWAP);
 
   if (!sellFormat || !buyFormat) {
+    logger.warn(
+      `Thor Swap: Asset mapping not found for ${srcAsset.chain}:${srcAsset.symbol} -> ${destAsset.chain}:${destAsset.symbol}`
+    );
     return { fee: 0, time: 0 };
   }
 
@@ -32,6 +36,7 @@ export const getThorFee = async (
         slippage: 3,
         includeTx: true,
         cfBoost: false,
+        provider: "THORCHAIN",
       },
       {
         timeout: 10000,
@@ -40,8 +45,10 @@ export const getThorFee = async (
           "X-Version": "2",
           "Content-Type": "application/json",
         },
-      },
+      }
     );
+
+    logger.info(`The thor swap response: ${JSON.stringify(result)}`);
 
     const bestProvider = result.routes.reduce(
       (best: ThorSwapRoute, current: ThorSwapRoute) => {
@@ -49,23 +56,23 @@ export const getThorFee = async (
         const currentAmount = parseFloat(current.expectedBuyAmount);
         return currentAmount > bestAmount ? current : best;
       },
-      result.routes[0],
+      result.routes[0]
     );
 
     const inputAssetsFormatted = getFormattedAsset(
       srcAsset,
-      SwapPlatform.THORSWAP,
+      SwapPlatform.THORSWAP
     );
     const outputAssetsFormatted = getFormattedAsset(
       destAsset,
-      SwapPlatform.THORSWAP,
+      SwapPlatform.THORSWAP
     );
 
     const inputTokenMeta = bestProvider.meta.assets.find(
-      (asset: ThorSwapAsset) => asset.asset === inputAssetsFormatted,
+      (asset: ThorSwapAsset) => asset.asset === inputAssetsFormatted
     );
     const outputTokenMeta = bestProvider.meta.assets.find(
-      (asset: ThorSwapAsset) => asset.asset === outputAssetsFormatted,
+      (asset: ThorSwapAsset) => asset.asset === outputAssetsFormatted
     );
 
     const inputValue = new BigNumber(amount)
